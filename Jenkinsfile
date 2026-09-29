@@ -10,7 +10,6 @@ pipeline {
 
         SONAR_URL = 'http://192.168.42.152:9000'
 
-        // A MODIFIER avec l'IP réelle de Nexus
         NEXUS_URL = 'http://192.168.42.XXX:8081'
     }
 
@@ -89,7 +88,7 @@ pipeline {
 
                         echo "=== Analyse SonarQube ==="
 
-                        mvn org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
+                        mvn org.sonarsource.scanner.maven:sonar-maven-plugin:5.7.0.697:sonar \
                           -Dsonar.projectKey=com.insaf.demo:demo-app \
                           -Dsonar.projectName=demo-app \
                           -Dsonar.host.url="$SONAR_HOST_URL" \
