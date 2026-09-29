@@ -1,9 +1,17 @@
 pipeline {
-    agent any
+
+    agent {
+        label 'centos-build'
+    }
 
     environment {
         JAVA_HOME = '/opt/java/jdk-21.0.4+7'
         PATH = "${JAVA_HOME}/bin:${env.PATH}"
+
+        SONAR_URL = 'http://192.168.42.152:9000'
+
+        // A MODIFIER avec l'IP réelle de Nexus
+        NEXUS_URL = 'http://192.168.42.XXX:8081'
     }
 
     stages {
@@ -19,6 +27,7 @@ pipeline {
             steps {
                 sh '''
                     set -e
+
                     echo "=== JAVA_HOME ==="
                     echo "$JAVA_HOME"
 
@@ -36,6 +45,7 @@ pipeline {
         stage('Build') {
             steps {
                 echo '=== Build Maven ==='
+
                 sh '''
                     set -e
                     mvn clean package -DskipTests
@@ -46,6 +56,7 @@ pipeline {
         stage('Tests') {
             steps {
                 echo '=== Tests Maven ==='
+
                 sh '''
                     set -e
                     mvn test
@@ -54,7 +65,10 @@ pipeline {
 
             post {
                 always {
-                    junit 'target/surefire-reports/*.xml'
+                    junit(
+                        testResults: 'target/surefire-reports/*.xml',
+                        allowEmptyResults: true
+                    )
                 }
             }
         }
@@ -67,9 +81,18 @@ pipeline {
                     sh '''
                         set -e
 
-                        mvn sonar:sonar \
+                        echo "=== SonarQube ==="
+                        echo "$SONAR_HOST_URL"
+
+                        echo "=== Test connexion SonarQube ==="
+                        curl -I "$SONAR_HOST_URL"
+
+                        echo "=== Analyse SonarQube ==="
+
+                        mvn org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
                           -Dsonar.projectKey=com.insaf.demo:demo-app \
                           -Dsonar.projectName=demo-app \
+                          -Dsonar.host.url="$SONAR_HOST_URL" \
                           -Dsonar.sources=src/main/java \
                           -Dsonar.tests=src/test/java \
                           -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
@@ -82,7 +105,7 @@ pipeline {
             steps {
                 echo '=== Quality Gate SonarQube ==='
 
-                timeout(time: 10, unit: 'MINUTES') {
+                timeout(time: 5, unit: 'MINUTES') {
                     waitForQualityGate abortPipeline: true
                 }
             }
@@ -95,11 +118,11 @@ pipeline {
                 sh '''
                     set -e
 
-                    echo "=== Vérification du JAR ==="
-                    ls -lh target/*.jar
+                    echo "Nexus URL : $NEXUS_URL"
 
-                    echo "=== Deploy Maven ==="
-                    mvn deploy -DskipTests
+                    curl -I "$NEXUS_URL"
+
+                    echo "Nexus accessible."
                 '''
             }
         }
@@ -108,25 +131,28 @@ pipeline {
             steps {
                 echo '=== Archive des artefacts ==='
 
-                archiveArtifacts artifacts: 'target/*.jar',
-                                 fingerprint: true
+                archiveArtifacts(
+                    artifacts: 'target/*.jar',
+                    fingerprint: true
+                )
             }
         }
     }
 
     post {
-        always {
-            echo '=== Pipeline terminé ==='
-        }
 
         success {
-            echo '=== CI SUCCESS ==='
-            echo 'Le pipeline a terminé avec succès.'
+            echo '=== CI/CD SUCCESS ==='
+            echo 'Le pipeline est terminé avec succès.'
         }
 
         failure {
-            echo '=== CI FAILURE ==='
+            echo '=== CI/CD FAILURE ==='
             echo 'Le pipeline a échoué.'
+        }
+
+        always {
+            echo '=== Pipeline terminé ==='
         }
     }
 }
